@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: temp-humidity-control
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn temp_humidity_control.wsgi:application
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: temp_humidity_control.settings
+      - key: PYTHON_VERSION
+        value: 3.11
