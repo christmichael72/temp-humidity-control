@@ -1,0 +1,141 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Temperature and Humidity Control</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-blue-100 p-6">
+  <div class="max-w-6xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4 text-center">Temperature and Humidity Control</h1>
+
+      <div class="text-center mt-4 m-4">
+        <a id="generate-pdf-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          📊 Generate Daily Chart (PDF)
+        </a>
+      </div>
+
+    <script>
+      document.getElementById("generate-pdf-btn").addEventListener("click", function () {
+        const date = document.querySelector('input[name="date"]').value;
+        const container = document.querySelector('input[name="container"]').value;
+        const pallet = document.querySelector('input[name="pallet"]').value;
+        const product = document.querySelector('input[name="product"]').value;
+
+        const url = new URL("/generate-chart-pdf/", window.location.origin);
+        url.searchParams.append("date", date);
+        url.searchParams.append("container", container);
+        url.searchParams.append("pallet", pallet);
+        url.searchParams.append("product", product);
+
+        window.open(url.toString(), "_blank");
+      });
+    </script>
+
+      <!-- Filter Form -->
+      <form method="get" class="flex flex-wrap gap-4 mb-6 justify-self-center">
+        <input type="date" name="date" value="{{ request.GET.date }}" class="border p-2 rounded" />
+        <input type="text" name="container" placeholder="Container Code" value="{{ request.GET.container }}" class="border p-2 rounded" />
+        <input type="text" name="pallet" placeholder="Pallet Position" value="{{ request.GET.pallet }}" class="border p-2 rounded" />
+        <input type="text" name="product" placeholder="Product Description" value="{{ request.GET.product }}" class="border p-2 rounded w-64" />
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          🔍 Filter
+        </button>
+      </form>
+
+      <!-- Chart -->
+      <div class="bg-white rounded shadow p-4">
+        <canvas id="monitoringChart" class="w-full h-96"></canvas>
+      </div>
+
+      <!-- Chart.js -->
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script>
+        const labels = {{ labels|safe }};
+        const temps = {{ temps|safe }};
+        const hums = {{ hums|safe }};
+
+        const ctx = document.getElementById('monitoringChart').getContext('2d');
+        const chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+                    {
+                      type: 'line',
+                      label: 'Temperature (°C)',
+                      data: temps,
+                      borderColor: 'orange',
+                      backgroundColor: 'orange',
+                      yAxisID: 'y',
+                      tension: 0.3,
+                      pointBackgroundColor: temps.map(t => t > -18 ? 'red' : 'orange'),
+                      pointRadius: 5
+                    },
+                    {
+                      type: 'bar',
+                      label: 'Humidity (%)',
+                      data: hums,
+                      backgroundColor: hums.map(h => h > 85 ? 'red' : 'blue'),
+                      yAxisID: 'y1'
+                    }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                position: 'left',
+                beginAtZero: false,
+                min: -21,
+                max: -14,
+                title: { display: true, text: 'Temperature (°C)' }
+              },
+              y1: {
+                position: 'right',
+                beginAtZero: false,
+                min: 70,
+                max: 100,
+                title: { display: true, text: 'Humidity (%)' },
+                grid: { drawOnChartArea: false }
+              }
+              },
+            plugins: {
+              legend: { position: 'top' },
+              title: {
+                display: true,
+                text: 'Temperature and Humidity Chart',
+                font: { size: 16 }
+              }
+            }
+          }
+        });
+      </script>
+
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+        <h2 class="font-bold text-lg mb-2">⚠️ WASPADA: Suhu atau Kelembapan mendekati ambang batas!</h2>
+        <ul class="list-disc ml-5">
+          {% for a in alerts %}
+            <li>
+              <strong>{{ a.timestamp|date:"H:i" }}</strong> –
+              Temperature: {{ a.temperature }}°C,
+              Humidity: {{ a.humidity }}%,
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="bg-gray-100 p-4 mb-6 rounded shadow">
+        <div><strong>Date:</strong> {{ date }}</div>
+        <div><strong>Container Code:</strong> {{ metadata.container_code }}</div>
+        <div><strong>Pallet Position:</strong> {{ metadata.pallet_position }}</div>
+        <div><strong>Product:</strong> {{ metadata.product_description }}</div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

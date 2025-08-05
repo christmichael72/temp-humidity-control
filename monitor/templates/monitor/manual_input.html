@@ -1,0 +1,33 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Data Input</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-10">
+    <div class="max-w-xl mx-auto bg-white p-6 rounded shadow">
+        <h1 class="text-xl font-bold mb-4">Manual Temperature & Humidity Entry</h1>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-4">
+                {{ form.timestamp }}
+            </div>
+            <div class="mb-4">
+                <label class="block">Temperature (°C):</label>
+                <input type="number" name="temperature" step="0.1" min="-20" max="-15" required
+                       class="border p-2 w-full rounded" />
+            </div>
+            <div class="mb-4">
+                <label class="block">Humidity (%):</label>
+                <input type="number" name="humidity" step="0.1" min="75" max="90" required
+                       class="border p-2 w-full rounded" />
+            </div>
+            {{ form.container_code }}
+            {{ form.pallet_position }}
+            {{ form.product_description }}
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Submit</button>
+        </form>
+    </div>
+</body>
+</html>

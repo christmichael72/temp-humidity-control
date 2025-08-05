@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    img { width: 100%; height: auto; }
+    .info { margin-bottom: 20px; }
+    .info div { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h2>Daily Monitoring Chart - {{ date }}</h2>
+
+  <div class="info">
+    <div><strong>Container Code:</strong> {{ container_code }}</div>
+    <div><strong>Pallet Position:</strong> {{ pallet_position }}</div>
+    <div><strong>Product:</strong> {{ product_description }}</div>
+  </div>
+
+  <img src="data:image/png;base64,{{ chart }}" alt="Chart">
+</body>
+</html>
