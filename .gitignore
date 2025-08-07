@@ -1,13 +1,11 @@
 *.pyc
 __pycache__/
-db.sqlite3
 .env
 *.log
 /media
 /staticfiles
 node_modules/
 venv/
-*.sqlite3
 *.zip
 *.pdf
 *.png
