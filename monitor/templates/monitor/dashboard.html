@@ -45,20 +45,59 @@
         </button>
       </form>
 
-      <!-- Chart -->
+      <!-- Temperature Chart -->
       <div class="bg-white rounded shadow p-4">
-        <canvas id="monitoringChart" class="w-full h-96"></canvas>
+        <canvas id="temperatureChart" class="w-full h-96"></canvas>
       </div>
 
-      <!-- Chart.js -->
+      {% if temp_alerts %}
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+        <h2 class="font-bold text-lg mb-2">⚠️ WASPADA: Suhu mendekati ambang batas!</h2>
+        <ul class="list-disc ml-5">
+          {% for a in temp_alerts %}
+            <li>
+              <strong>{{ a.timestamp|date:"H:i" }}</strong> – Temperature: {{ a.temperature }}°C
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+    <!-- Humidity Chart -->
+      <div class="bg-white rounded shadow p-4">
+        <canvas id="humidityChart" class="w-full h-96"></canvas>
+      </div>
+
+      {% if humidity_alerts %}
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+        <h2 class="font-bold text-lg mb-2">⚠️ WASPADA: Kelembapan mendekati ambang batas!</h2>
+        <ul class="list-disc ml-5">
+          {% for a in humidity_alerts %}
+            <li>
+              <strong>{{ a.timestamp|date:"H:i" }}</strong> – Humidity: {{ a.humidity }}%
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Temperature & Humidity Chart.js -->
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
       <script>
+        Chart.register(window['chartjs-plugin-annotation']);
+
         const labels = {{ labels|safe }};
         const temps = {{ temps|safe }};
+        const ewmaTemps = {{ ewma_temps|safe }};
         const hums = {{ hums|safe }};
 
-        const ctx = document.getElementById('monitoringChart').getContext('2d');
-        const chart = new Chart(ctx, {
+        const cl = {{ cl|default:"null" }};
+        const ucl = {{ ucl|default:"null" }};
+        const lcl = {{ lcl|default:"null" }};
+
+        const tempsCtx = document.getElementById('temperatureChart').getContext('2d');
+        const tempsChart = new Chart(tempsCtx, {
           type: 'bar',
           data: {
             labels: labels,
@@ -67,19 +106,32 @@
                       type: 'line',
                       label: 'Temperature (°C)',
                       data: temps,
-                      borderColor: 'orange',
-                      backgroundColor: 'orange',
+                      borderColor: 'green',
+                      backgroundColor: 'green',
                       yAxisID: 'y',
                       tension: 0.3,
-                      pointBackgroundColor: temps.map(t => t > -18 ? 'red' : 'orange'),
-                      pointRadius: 5
+                      pointBackgroundColor: temps.map(value => {
+                        if (value > -15) return 'red';        // Above -15°C
+                        if (value > -18) return 'orange';     // Between -18°C and -15°C
+                        return 'green';                       // Safe zone
+                      }),
+                      pointRadius: 5,
+                      pointRadius: temps.map(value => {
+                        if (value > -15) return 9;
+                        if (value > -18) return 7;
+                        return 5;
+                      })
                     },
                     {
-                      type: 'bar',
-                      label: 'Humidity (%)',
-                      data: hums,
-                      backgroundColor: hums.map(h => h > 85 ? 'red' : 'blue'),
-                      yAxisID: 'y1'
+                      type: 'line',
+                      label: 'EWMA Temperature (°C)',
+                      data: ewmaTemps,
+                      borderColor: 'blue',
+                      backgroundColor: 'transparent',
+                      borderWidth: 2,
+                      yAxisID: 'y',
+                      tension: 0.3,
+                      pointRadius: 0 // smooth line without points
                     }
             ]
           },
@@ -90,42 +142,166 @@
                 position: 'left',
                 beginAtZero: false,
                 min: -21,
-                max: -14,
+                max: -13,
                 title: { display: true, text: 'Temperature (°C)' }
-              },
-              y1: {
-                position: 'right',
-                beginAtZero: false,
-                min: 70,
-                max: 100,
-                title: { display: true, text: 'Humidity (%)' },
-                grid: { drawOnChartArea: false }
               }
-              },
+            },
             plugins: {
+              annotation: {
+                annotations: {
+                  lowTemp: {
+                      type: 'line',
+                      yMin: -18,
+                      yMax: -18,
+                      borderColor: 'orange',
+                      borderWidth: 2,
+                      borderDash: [5, 5],
+                      label: {
+                        enabled: true,
+                        content: 'Batas Aman -18°C'
+                      }
+                  },
+                  highTemp: {
+                    type: 'line',
+                    yMin: -15,
+                    yMax: -15,
+                    borderColor: 'red',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    label: {
+                      enabled: true,
+                      content: 'Batas Bahaya -15°C'
+                    }
+                  },
+                  clLine: {
+                    type: 'line',
+                    yMin: cl,
+                    yMax: cl,
+                    borderColor: 'blue',
+                    borderWidth: 3,
+                    borderDash: [6, 6],
+                    label: {
+                      enabled: true,
+                      content: `CL (${cl})`,
+                      position: 'start'
+                    }
+                  },
+                  uclLine: {
+                    type: 'line',
+                    yMin: ucl,
+                    yMax: ucl,
+                    borderColor: 'green',
+                    borderWidth: 3,
+                    borderDash: [6, 6],
+                    label: {
+                      enabled: true,
+                      content: `UCL (${ucl})`,
+                      position: 'start'
+                    }
+                  },
+                  lclLine: {
+                    type: 'line',
+                    yMin: lcl,
+                    yMax: lcl,
+                    borderColor: 'green',
+                    borderWidth: 3,
+                    borderDash: [6, 6],
+                    label: {
+                      enabled: true,
+                      content: `LCL (${lcl})`,
+                      position: 'start'
+                    }
+                  }
+                }
+              },
               legend: { position: 'top' },
               title: {
                 display: true,
-                text: 'Temperature and Humidity Chart',
+                text: 'Temperature Chart (EWMA + Control Limits)',
+                font: { size: 16 }
+              }
+            }
+          }
+        });
+
+        const humsCtx = document.getElementById('humidityChart').getContext('2d');
+        const humsChart = new Chart(humsCtx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+                    {
+                      type: 'line',
+                      label: 'Humidity (%)',
+                      data: hums,
+                      borderColor: 'blue',
+                      backgroundColor: 'blue',
+                      yAxisID: 'y',
+                      tension: 0.3,
+                      pointBackgroundColor: hums.map(value => {
+                        if (value > 88) return 'red';        // Above -15°C
+                        if (value > 85) return 'orange';     // Between -18°C and -15°C
+                        return 'blue';                       // Safe zone
+                      }),
+                      pointRadius: 5,
+                      pointRadius: hums.map(value => {
+                        if (value > 88) return 9;
+                        if (value > 85) return 7;
+                        return 5;
+                      })
+                    }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                position: 'left',
+                beginAtZero: false,
+                min: 55,
+                max: 90,
+                title: { display: true, text: 'Humidity (%)' }
+              }
+              },
+            plugins: {
+              annotation: {
+                annotations: {
+                  lowHum: {
+                      type: 'line',
+                      yMin: 85,
+                      yMax: 85,
+                      borderColor: 'orange',
+                      borderWidth: 2,
+                      borderDash: [5, 5],
+                      label: {
+                        enabled: true,
+                        content: 'Batas Aman 85 %'
+                      }
+                  },
+                  highHum: {
+                    type: 'line',
+                    yMin: 88,
+                    yMax: 88,
+                    borderColor: 'red',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    label: {
+                      enabled: true,
+                      content: 'Batas Bahaya 88 %'
+                    }
+                  }
+                }
+              },
+              legend: { position: 'top' },
+              title: {
+                display: true,
+                text: 'Humidity Chart',
                 font: { size: 16 }
               }
             }
           }
         });
       </script>
-
-      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-        <h2 class="font-bold text-lg mb-2">⚠️ WASPADA: Suhu atau Kelembapan mendekati ambang batas!</h2>
-        <ul class="list-disc ml-5">
-          {% for a in alerts %}
-            <li>
-              <strong>{{ a.timestamp|date:"H:i" }}</strong> –
-              Temperature: {{ a.temperature }}°C,
-              Humidity: {{ a.humidity }}%,
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
 
       <div class="bg-gray-100 p-4 mb-6 rounded shadow">
         <div><strong>Date:</strong> {{ date }}</div>

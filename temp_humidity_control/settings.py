@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'monitor',
+    'import_export',
 ]
 
 MIDDLEWARE = [
@@ -67,9 +68,6 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'temp_humidity_control.wsgi.application'
-
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -79,6 +77,8 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # Password validation

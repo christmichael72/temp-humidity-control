@@ -1,5 +1,6 @@
 
 import matplotlib.pyplot as plt
+import pandas as pd
 from matplotlib.ticker import MaxNLocator
 from io import BytesIO
 from django.shortcuts import render, redirect
@@ -38,10 +39,26 @@ def dashboard(request):
     if product:
         data = data.filter(product_description__icontains=product)
 
-    alerts = data.filter(temperature__gt=-15) | data.filter(humidity__gt=85).order_by('-timestamp')
+    temp_alerts = data.filter(temperature__gt=-18).order_by('-timestamp')
+    humidity_alerts = data.filter(humidity__gt=85).order_by('-timestamp')
     labels = [d.timestamp.strftime('%H:%M') for d in data]
     temps = [d.temperature for d in data]
     hums = [d.humidity for d in data]
+
+    # ✅ Calculate EWMA for temps
+    if temps:
+        df = pd.DataFrame({'temp': temps})
+        ewma_temps = df['temp'].ewm(alpha=0.3).mean().round(2).tolist()
+
+        # ✅ Control Limits
+        mean_temp = df['temp'].mean()
+        std_temp = df['temp'].std()
+        cl = round(mean_temp, 2)
+        ucl = round(mean_temp + 3 * std_temp, 2)
+        lcl = round(mean_temp - 3 * std_temp, 2)
+    else:
+        ewma_temps = []
+        cl = ucl = lcl = None
 
     # Extract metadata from first matching entry (if exists)
     metadata = data.first()
@@ -50,10 +67,15 @@ def dashboard(request):
         'data': data,
         'labels': labels,
         'temps': temps,
+        'ewma_temps': ewma_temps,
+        'cl': cl,
+        'ucl': ucl,
+        'lcl': lcl,
         'hums': hums,
         'metadata': metadata,
         'date' : date,
-        'alerts': alerts,
+        'temp_alerts': temp_alerts,
+        'humidity_alerts': humidity_alerts,
         'request': request
     }
     return render(request, 'monitor/dashboard.html', context)
@@ -123,7 +145,7 @@ def generate_chart_pdf(request):
     ax1.scatter(labels, temps, color=temp_colors, s=50, zorder=5)
     ax1.set_ylabel('Temperature (°C)', color='#FFA500')
     ax1.tick_params(axis='y', labelcolor='#FFA500')
-    ax1.set_ylim(-21, -14)
+    ax1.set_ylim(-22, -12)
     ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax1.axhline(temp_threshold, color='red', linestyle='--', linewidth=1, alpha=0.5)
 
@@ -131,7 +153,7 @@ def generate_chart_pdf(request):
     ax2.bar(labels, hums, color=humidity_colors, alpha=0.7)
     ax2.set_ylabel('Humidity (%)', color='#007BFF')
     ax2.tick_params(axis='y', labelcolor='#007BFF')
-    ax2.set_ylim(70, 100)
+    ax2.set_ylim(55, 90)
     ax2.axhline(humidity_threshold, color='red', linestyle='--', linewidth=1, alpha=0.5)
 
     ax1.set_xticks(range(len(labels)))
