@@ -14,6 +14,7 @@ Install Python & Git
 
 ### 
 1️⃣ Clone the Repository
+
 Open your GitBash terminal:
 <img width="1133" height="653" alt="Screenshot (90)" src="https://github.com/user-attachments/assets/d6608254-f1a1-4ad6-8a42-52ee3ca9d5e0" />
 And run :
