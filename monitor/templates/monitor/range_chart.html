@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Range Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Temperature & Humidity - Range Chart</h1>
+            <a href="{% url 'dashboard' %}" class="bg-white text-blue-600 px-4 py-2 rounded shadow hover:bg-gray-200">Back to Dashboard</a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-6 flex-1">
+
+        <!-- Date Range Form -->
+        <form method="get" class="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-col md:flex-row items-center gap-4">
+            <div class="flex flex-col">
+                <label class="font-semibold">Start Date:</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="border rounded px-3 py-1">
+            </div>
+            <div class="flex flex-col">
+                <label class="font-semibold">End Date:</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="border rounded px-3 py-1">
+            </div>
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 mt-4 md:mt-6">
+                Apply Filter
+            </button>
+        </form>
+
+        <!-- Charts Grid -->
+        <div class="flex flex-col gap-6">
+            <div class="bg-white shadow-md rounded-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">Daily Average Temperature (EWMA + Control Limits)</h2>
+                <canvas id="tempChart" height="150"></canvas>
+            </div>
+
+            <div class="bg-white shadow-md rounded-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">Daily Average Humidity (EWMA + Control Limits)</h2>
+                <canvas id="humChart" height="150"></canvas>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+    <script>
+    Chart.register(window['chartjs-plugin-annotation']);
+
+    const labels = {{ labels|safe }};
+    const avgTemps = {{ avg_temps|safe }};
+    const ewmaTemps = {{ ewma_temps|safe }};
+    const avgHums = {{ avg_hums|safe }};
+    const ewmaHums = {{ ewma_hums|safe }};
+
+    // Temperature Chart
+    const clTemp = {{ cl_temp|default:"null" }};
+    const uclTemp = {{ ucl_temp|default:"null" }};
+    const lclTemp = {{ lcl_temp|default:"null" }};
+
+    new Chart(document.getElementById('tempChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Daily Avg Temperature (°C)',
+                data: avgTemps,
+                borderColor: 'green',
+                backgroundColor: 'rgba(0,128,0,0.2)',
+                tension: 0.3,
+                pointBackgroundColor: avgTemps.map(value => {
+                    if (value > -15) return 'red';
+                    if (value > -18) return 'orange';
+                    return 'green';
+                }),
+                pointRadius: avgTemps.map(value => {
+                    if (value > -15) return 9;
+                    if (value > -18) return 7;
+                    return 5;
+                })
+            },
+                {
+                    label: 'EWMA Temperature (°C)',
+                    data: ewmaTemps,
+                    borderColor: 'blue',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                annotation: {
+                    annotations: {
+                        lowTemp: {
+                            type: 'line',
+                            yMin: -18,
+                            yMax: -18,
+                            borderColor: 'orange',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            label: {
+                                display: true,
+                                content: ['Batas Aman -18°C'],
+                                position: 'start',
+                                backgroundColor: 'orange'
+                            }
+                        },
+                        highTemp: {
+                            type: 'line',
+                            yMin: -15,
+                            yMax: -15,
+                            borderColor: 'red',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            label: {
+                                display: true,
+                                content: ['Batas Bahaya -15°C'],
+                                position: 'start',
+                                backgroundColor: 'red'
+                            }
+                        },
+                        clLine: {
+                            type: 'line',
+                            yMin: clTemp,
+                            yMax: clTemp,
+                            borderColor: 'blue',
+                            borderWidth: 3,
+                            borderDash: [6, 6],
+                            label: {
+                                display: true,
+                                content: [`CL ${clTemp}°C`],
+                                position: 'end', // 'start', 'center', or 'end'
+                                backgroundColor: 'rgb(0,0,255)',
+                                color: 'white',
+                                font: {
+                                    size: 12,
+                                    style: 'bold'
+                                },
+                                rotation: 0 // keep text horizontal
+                            }
+                        },
+                        uclLine: {
+                            type: 'line',
+                            yMin: uclTemp,
+                            yMax: uclTemp,
+                            borderColor: 'green',
+                            borderWidth: 3,
+                            borderDash: [6, 6],
+                            label: {
+                                display: true,
+                                content: [`UCL ${uclTemp}°C`],
+                                position: 'end', // 'start', 'center', or 'end'
+                                backgroundColor: 'rgb(0,128,0)',
+                                color: 'white',
+                                font: {
+                                    size: 12,
+                                    style: 'bold'
+                                },
+                                rotation: 0 // keep text horizontal
+                            }
+                        },
+                        lclLine: {
+                            type: 'line',
+                            yMin: lclTemp,
+                            yMax: lclTemp,
+                            borderColor: 'green',
+                            borderWidth: 3,
+                            borderDash: [6, 6],
+                            label: {
+                                display: true,
+                                content: [`LCL ${lclTemp}°C`],
+                                position: 'end', // 'start', 'center', or 'end'
+                                backgroundColor: 'rgb(0,128,0)',
+                                color: 'white',
+                                font: {
+                                    size: 12,
+                                    style: 'bold'
+                                },
+                                rotation: 0 // keep text horizontal
+                            }
+                        }
+                    }
+                },
+                legend: { position: 'top' },
+                title: { display: true, text: 'Daily Average Temperature Chart (EWMA + Control Limits)' }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    min: -20,
+                    max: -14
+                }
+            }
+        }
+    });
+
+    // Humidity Chart
+    const clHum = {{ cl_hum|default:"null" }};
+    const uclHum = {{ ucl_hum|default:"null" }};
+    const lclHum = {{ lcl_hum|default:"null" }};
+
+    new Chart(document.getElementById('humChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Daily Avg Humidity (%)',
+                data: avgHums,
+                borderColor: 'blue',
+                backgroundColor: 'rgba(0,0,255,0.2)',
+                tension: 0.3,
+                pointBackgroundColor: avgHums.map(value => {
+                    if (value > 90) return 'red';
+                    if (value > 85) return 'orange';
+                    return 'blue';
+                }),
+                pointRadius: avgHums.map(value => {
+                    if (value > 90) return 9;
+                    if (value > 85) return 7;
+                    return 5;
+                })
+                },
+                {
+                    label: 'EWMA Humidity (%)', 
+                    data: ewmaHums,
+                    borderColor: 'purple',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                annotation: {
+                    annotations: {
+                        warnHum: {
+                            type: 'line',
+                            yMin: 85,
+                            yMax: 85,
+                            borderColor: 'orange',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            label: {
+                                display: true,
+                                content: ['Batas Aman 85%'],
+                                position: 'end',
+                                position: 'start',
+                                backgroundColor: 'orange'
+                            }
+                        },
+                        dangerHum: {
+                            type: 'line',
+                            yMin: 90,
+                            yMax: 90,
+                            borderColor: 'red',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            label: {
+                                display: true,
+                                content: ['Batas Bahaya 90%'],
+                                position: 'end',
+                                position: 'start',
+                                backgroundColor: 'red'
+                            }
+                        },
+                        clLine: {
+                            type: 'line',
+                            yMin: clHum,
+                            yMax: clHum,
+                            borderColor: 'purple',
+                            borderWidth: 3,
+                            borderDash: [6, 6],
+                            label: {
+                                display: true,
+                                content: [`CL ${clHum}°C`],
+                                position: 'end', // 'start', 'center', or 'end'
+                                backgroundColor: 'rgb(128, 0, 255)',
+                                color: 'white',
+                                font: {
+                                    size: 12,
+                                    style: 'bold'
+                                },
+                                rotation: 0 // keep text horizontal
+                            }
+                        },
+                        uclLine: {
+                            type: 'line',
+                            yMin: uclHum,
+                            yMax: uclHum,
+                            borderColor: 'green',
+                            borderWidth: 3,
+                            borderDash: [6, 6],
+                            label: {
+                                display: true,
+                                content: [`UCL ${uclHum}°C`],
+                                position: 'end', // 'start', 'center', or 'end'
+                                backgroundColor: 'rgb(0,128,0)',
+                                color: 'white',
+                                font: {
+                                    size: 12,
+                                    style: 'bold'
+                                },
+                                rotation: 0 // keep text horizontal
+                            }
+                        },
+                        lclLine: {
+                            type: 'line',
+                            yMin: lclHum,
+                            yMax: lclHum,
+                            borderColor: 'green',
+                            borderWidth: 3,
+                            borderDash: [6, 6],
+                            label: {
+                                display: true,
+                                content: [`LCL ${lclHum}°C`],
+                                position: 'end', // 'start', 'center', or 'end'
+                                backgroundColor: 'rgb(0,128,0)',
+                                color: 'white',
+                                font: {
+                                    size: 12,
+                                    style: 'bold'
+                                },
+                                rotation: 0 // keep text horizontal
+                            }
+                        }
+                    }
+                },
+                legend: { position: 'top' },
+                title: { display: true, text: 'Daily Average Humidity Chart (EWMA + Control Limits)' }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    min: 55,
+                    max: 90
+                }
+            }
+        }
+    });
+    </script>
+</body>
+</html>

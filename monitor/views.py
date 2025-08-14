@@ -10,6 +10,7 @@ from .forms import MonitoringDataForm
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
 from django.http import HttpResponse
+from django.db.models import Avg, Max
 from xhtml2pdf import pisa
 from datetime import datetime
 import base64
@@ -23,6 +24,13 @@ def dashboard(request):
     pallet = request.GET.get('pallet')
     product = request.GET.get('product')
 
+    # ✅ If no date filter is given, default to most recent day
+    if not date:
+        latest_entry = MonitoringData.objects.aggregate(Max('timestamp'))['timestamp__max']
+        if latest_entry:
+            date = latest_entry.date().strftime('%Y-%m-%d')
+
+    # Apply date filter
     if date:
         try:
             date_obj = datetime.strptime(date, '%Y-%m-%d').date()
@@ -41,6 +49,7 @@ def dashboard(request):
 
     temp_alerts = data.filter(temperature__gt=-18).order_by('-timestamp')
     humidity_alerts = data.filter(humidity__gt=85).order_by('-timestamp')
+
     labels = [d.timestamp.strftime('%H:%M') for d in data]
     temps = [d.temperature for d in data]
     hums = [d.humidity for d in data]
@@ -53,12 +62,27 @@ def dashboard(request):
         # ✅ Control Limits
         mean_temp = df['temp'].mean()
         std_temp = df['temp'].std()
-        cl = round(mean_temp, 2)
-        ucl = round(mean_temp + 3 * std_temp, 2)
-        lcl = round(mean_temp - 3 * std_temp, 2)
+        cl_temp = round(mean_temp, 2)
+        ucl_temp = round(mean_temp + 3 * std_temp, 2)
+        lcl_temp = round(mean_temp - 3 * std_temp, 2)
     else:
         ewma_temps = []
-        cl = ucl = lcl = None
+        cl_temp = ucl_temp = lcl_temp = None
+
+    # ✅ Calculate EWMA for hums
+    if temps:
+        df = pd.DataFrame({'hum': hums})
+        ewma_hums = df['hum'].ewm(alpha=0.3).mean().round(2).tolist()
+
+        # ✅ Control Limits
+        mean_hum = df['hum'].mean()
+        std_hum = df['hum'].std()
+        cl_hum = round(mean_hum, 2)
+        ucl_hum = round(mean_hum + 3 * std_hum, 2)
+        lcl_hum = round(mean_hum - 3 * std_hum, 2)
+    else:
+        ewma_hums = []
+        cl_hum = ucl_hum = lcl_hum = None
 
     # Extract metadata from first matching entry (if exists)
     metadata = data.first()
@@ -68,10 +92,14 @@ def dashboard(request):
         'labels': labels,
         'temps': temps,
         'ewma_temps': ewma_temps,
-        'cl': cl,
-        'ucl': ucl,
-        'lcl': lcl,
+        'cl_temp': cl_temp,
+        'ucl_temp': ucl_temp,
+        'lcl_temp': lcl_temp,
         'hums': hums,
+        'ewma_hums': ewma_hums,
+        'cl_hum': cl_hum,
+        'ucl_hum': ucl_hum,
+        'lcl_hum': lcl_hum,
         'metadata': metadata,
         'date' : date,
         'temp_alerts': temp_alerts,
@@ -80,24 +108,62 @@ def dashboard(request):
     }
     return render(request, 'monitor/dashboard.html', context)
 
-def latest_data_api(request):
-    time_slots = ["%s:%02d %s" % ((h-1)%12+1, m, "AM" if h < 12 else "PM")
-                  for h in range(7, 18) for m in (0, 30)]
-    slot_data = {label: {'temp': None, 'hum': None} for label in time_slots}
-    entries = MonitoringData.objects.filter(timestamp__hour__gte=7, timestamp__hour__lte=17)
-    for e in entries:
-        slot = e.timestamp.strftime("%I:%M %p").lstrip("0")
-        if slot in slot_data:
-            slot_data[slot] = {'temp': e.temperature, 'hum': e.humidity}
-    labels = list(slot_data.keys())
-    temps = [slot_data[k]['temp'] for k in labels]
-    hums = [slot_data[k]['hum'] for k in labels]
-    return JsonResponse({
-        "labels": labels,
-        "temperatures": temps,
-        "humidities": hums,
-        "temp_alert": any(t and t > -18 for t in temps),
-        "humidity_alert": any(h and h > 85 for h in hums)
+def range_chart(request):
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    data = MonitoringData.objects.all()
+
+    if start_date and end_date:
+        try:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            data = data.filter(timestamp__date__gte=start_dt, timestamp__date__lte=end_dt)
+        except ValueError:
+            pass
+
+    daily_data = (
+        data
+        .values('timestamp__date')
+        .annotate(avg_temp=Avg('temperature'), avg_hum=Avg('humidity'))
+        .order_by('timestamp__date')
+    )
+
+    labels = [d['timestamp__date'].strftime('%Y-%m-%d') for d in daily_data]
+    avg_temps = [round(d['avg_temp'], 2) for d in daily_data]
+    avg_hums = [round(d['avg_hum'], 2) for d in daily_data]
+
+    # ✅ EWMA
+    ewma_temps = pd.Series(avg_temps).ewm(alpha=0.3).mean().round(2).tolist() if avg_temps else []
+    ewma_hums = pd.Series(avg_hums).ewm(alpha=0.3).mean().round(2).tolist() if avg_hums else []
+
+    # ✅ Control Limits
+    def get_cl_limits(values):
+        if not values:
+            return None, None, None
+        s = pd.Series(values)
+        cl = round(s.mean(), 2)
+        ucl = round(cl + 3 * s.std(), 2)
+        lcl = round(cl - 3 * s.std(), 2)
+        return cl, ucl, lcl
+
+    cl_temp, ucl_temp, lcl_temp = get_cl_limits(avg_temps)
+    cl_hum, ucl_hum, lcl_hum = get_cl_limits(avg_hums)
+
+    return render(request, 'monitor/range_chart.html', {
+        'labels': labels,
+        'avg_temps': avg_temps,
+        'avg_hums': avg_hums,
+        'ewma_temps': ewma_temps,
+        'ewma_hums': ewma_hums,
+        'cl_temp': cl_temp,
+        'ucl_temp': ucl_temp,
+        'lcl_temp': lcl_temp,
+        'cl_hum': cl_hum,
+        'ucl_hum': ucl_hum,
+        'lcl_hum': lcl_hum,
+        'start_date': start_date or '',
+        'end_date': end_date or ''
     })
 
 def manual_input(request):

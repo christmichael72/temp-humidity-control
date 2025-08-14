@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime
 
 # Load original CSV to get categories and actual daily patterns
-original_df = pd.read_csv("monitoring_data.csv")
+original_df = pd.read_csv("sample_data.csv")
 original_df['timestamp'] = pd.to_datetime(original_df['timestamp'])
 
 # Average daily pattern by hour
@@ -11,8 +11,8 @@ avg_temp_by_hour = original_df.groupby(original_df['timestamp'].dt.hour)['temper
 avg_hum_by_hour = original_df.groupby(original_df['timestamp'].dt.hour)['humidity'].mean()
 
 # New date range
-start = datetime(2025, 6, 15, 1, 0)
-end = datetime(2025, 7, 8, 0, 0)
+start = datetime(2025, 7, 8, 1, 0)
+end = datetime(2025, 8, 15, 0, 0)
 timestamps = pd.date_range(start=start, end=end, freq='60min')
 
 temperature_values = []

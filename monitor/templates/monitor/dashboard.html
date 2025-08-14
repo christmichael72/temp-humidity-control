@@ -4,16 +4,22 @@
 <head>
   <meta charset="UTF-8">
   <title>Temperature and Humidity Control</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-blue-100 p-6">
-  <div class="max-w-6xl mx-auto bg-white p-6 rounded shadow">
+  <div class="max-w-7xl mx-auto bg-white p-6 rounded shadow">
     <h1 class="text-2xl font-bold mb-4 text-center">Temperature and Humidity Control</h1>
 
       <div class="text-center mt-4 m-4">
         <a id="generate-pdf-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
           📊 Generate Daily Chart (PDF)
+        </a>
+        <a href="{% url 'range_chart' %}" target="_blank" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 p-4">
+          <button>
+            View Range Chart
+          </button>
         </a>
       </div>
 
@@ -82,8 +88,6 @@
       {% endif %}
 
       <!-- Temperature & Humidity Chart.js -->
-      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
       <script>
         Chart.register(window['chartjs-plugin-annotation']);
 
@@ -91,10 +95,11 @@
         const temps = {{ temps|safe }};
         const ewmaTemps = {{ ewma_temps|safe }};
         const hums = {{ hums|safe }};
+        const ewmaHums = {{ ewma_hums|safe }};
 
-        const cl = {{ cl|default:"null" }};
-        const ucl = {{ ucl|default:"null" }};
-        const lcl = {{ lcl|default:"null" }};
+        const clTemp = {{ cl_temp|default:"null" }};
+        const uclTemp = {{ ucl_temp|default:"null" }};
+        const lclTemp = {{ lcl_temp|default:"null" }};
 
         const tempsCtx = document.getElementById('temperatureChart').getContext('2d');
         const tempsChart = new Chart(tempsCtx, {
@@ -157,8 +162,10 @@
                       borderWidth: 2,
                       borderDash: [5, 5],
                       label: {
-                        enabled: true,
-                        content: 'Batas Aman -18°C'
+                        display: true,
+                        content: 'Batas Aman -18°C',
+                        position: 'start',
+                        backgroundColor: 'orange'
                       }
                   },
                   highTemp: {
@@ -169,47 +176,70 @@
                     borderWidth: 2,
                     borderDash: [5, 5],
                     label: {
-                      enabled: true,
-                      content: 'Batas Bahaya -15°C'
+                      display: true,
+                      content: 'Batas Bahaya -15°C',
+                      position: 'start',
+                      backgroundColor: 'red'
                     }
                   },
                   clLine: {
                     type: 'line',
-                    yMin: cl,
-                    yMax: cl,
+                    yMin: clTemp,
+                    yMax: clTemp,
                     borderColor: 'blue',
                     borderWidth: 3,
                     borderDash: [6, 6],
                     label: {
-                      enabled: true,
-                      content: `CL (${cl})`,
-                      position: 'start'
+                      display: true,
+                      content: [`CL ${clTemp}°C`],
+                      position: 'end', // 'start', 'center', or 'end'
+                      backgroundColor: 'rgb(0,0,255)',
+                      color: 'white',
+                      font: {
+                        size: 12,
+                        style: 'bold'
+                      },
+                      rotation: 0 // keep text horizontal
                     }
                   },
                   uclLine: {
                     type: 'line',
-                    yMin: ucl,
-                    yMax: ucl,
+                    yMin: uclTemp,
+                    yMax: uclTemp,
                     borderColor: 'green',
                     borderWidth: 3,
                     borderDash: [6, 6],
                     label: {
-                      enabled: true,
-                      content: `UCL (${ucl})`,
-                      position: 'start'
+                      display: true,
+                      content: [`UCL ${uclTemp}°C`],
+                      position: 'end', // 'start', 'center', or 'end'
+                      backgroundColor: 'rgb(0,128,0)',
+                      color: 'white',
+                      font: {
+                        size: 12,
+                        style: 'bold'
+                      },
+                      rotation: 0 // keep text horizontal
                     }
                   },
                   lclLine: {
                     type: 'line',
-                    yMin: lcl,
-                    yMax: lcl,
+                    yMin: lclTemp,
+                    yMax: lclTemp,
                     borderColor: 'green',
                     borderWidth: 3,
                     borderDash: [6, 6],
                     label: {
-                      enabled: true,
-                      content: `LCL (${lcl})`,
-                      position: 'start'
+                      display: true,
+                      content: [`LCL ${lclTemp}°C`],
+                      position: 'end', // 'start', 'center', or 'end'
+                      backgroundColor: 'rgb(0,128,0)', 
+                      color: 'white',
+                      font: {
+                        size: 12,
+                        style: 'bold'
+                      },
+                      rotation: 0 // keep text horizontal
                     }
                   }
                 }
@@ -223,6 +253,10 @@
             }
           }
         });
+
+        const clHum = {{ cl_hum|default:"null" }};
+        const uclHum = {{ ucl_hum|default:"null" }};
+        const lclHum = {{ lcl_hum|default:"null" }};
 
         const humsCtx = document.getElementById('humidityChart').getContext('2d');
         const humsChart = new Chart(humsCtx, {
@@ -249,6 +283,16 @@
                         if (value > 85) return 7;
                         return 5;
                       })
+                    },
+                    {
+                      type: 'line',
+                      label: 'EWMA Humidity (%)',
+                      data: ewmaHums,
+                      borderColor: 'purple',
+                      backgroundColor: 'transparent',
+                      borderWidth: 2,
+                      tension: 0.3,
+                      pointRadius: 0
                     }
             ]
           },
@@ -267,16 +311,18 @@
               annotation: {
                 annotations: {
                   lowHum: {
-                      type: 'line',
-                      yMin: 85,
-                      yMax: 85,
-                      borderColor: 'orange',
-                      borderWidth: 2,
-                      borderDash: [5, 5],
-                      label: {
-                        enabled: true,
-                        content: 'Batas Aman 85 %'
-                      }
+                    type: 'line',
+                    yMin: 85,
+                    yMax: 85,
+                    borderColor: 'orange',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    label: {
+                      display: true,
+                      content: 'Batas Aman 85 %',
+                      position: 'start',
+                      backgroundColor: 'orange'
+                    }
                   },
                   highHum: {
                     type: 'line',
@@ -286,8 +332,70 @@
                     borderWidth: 2,
                     borderDash: [5, 5],
                     label: {
-                      enabled: true,
-                      content: 'Batas Bahaya 88 %'
+                      display: true,
+                      content: 'Batas Bahaya 88 %',
+                      position: 'start',
+                      backgroundColor: 'red'
+                    }
+                  },
+                  clLine: {
+                    type: 'line',
+                    yMin: clHum,
+                    yMax: clHum,
+                    borderColor: 'purple',
+                    borderWidth: 3,
+                    borderDash: [6, 6],
+                    label: {
+                      display: true,
+                      content: [`CL ${clHum}°C`],
+                      position: 'end', // 'start', 'center', or 'end'
+                      backgroundColor: 'rgb(128, 0, 255)',
+                      color: 'white',
+                      font: {
+                        size: 12,
+                        style: 'bold'
+                      },
+                      rotation: 0 // keep text horizontal
+                    }
+                  },
+                  uclLine: {
+                    type: 'line',
+                    yMin: uclHum,
+                    yMax: uclHum,
+                    borderColor: 'green',
+                    borderWidth: 3,
+                    borderDash: [6, 6],
+                    label: {
+                      display: true,
+                      content: [`UCL ${uclHum}°C`],
+                      position: 'end', // 'start', 'center', or 'end'
+                      backgroundColor: 'rgb(0,128,0)',
+                      color: 'white',
+                      font: {
+                        size: 12,
+                        style: 'bold'
+                      },
+                      rotation: 0 // keep text horizontal
+                    }
+                  },
+                  lclLine: {
+                    type: 'line',
+                    yMin: lclHum,
+                    yMax: lclHum,
+                    borderColor: 'green',
+                    borderWidth: 3,
+                    borderDash: [6, 6],
+                    label: {
+                      display: true,
+                      content: [`LCL ${lclHum}°C`],
+                      position: 'end', // 'start', 'center', or 'end'
+                      backgroundColor: 'rgb(0,128,0)',
+                      color: 'white',
+                      font: {
+                        size: 12,
+                        style: 'bold'
+                      },
+                      rotation: 0 // keep text horizontal
                     }
                   }
                 }
@@ -295,7 +403,7 @@
               legend: { position: 'top' },
               title: {
                 display: true,
-                text: 'Humidity Chart',
+                text: 'Humidity Chart (EWMA + Control Limits)',
                 font: { size: 16 }
               }
             }
