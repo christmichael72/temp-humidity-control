@@ -20,6 +20,7 @@ Open your GitBash terminal:
 And run :
 
 git clone https://github.com/christmichael72/temp-humidity-control.git
+
 cd temp-humidity-control
 
 2️⃣ Create & Activate a Virtual Environment
@@ -27,6 +28,7 @@ cd temp-humidity-control
 For Windows (GitBash)
 
 py -3 -m venv .venv
+
 .venv\Scripts\Activate
 
 For macOS / Linux
@@ -34,6 +36,7 @@ For macOS / Linux
 bash
 
 python3 -m venv .venv
+
 source .venv/bin/activate
 
 3️⃣ Install Dependencies
@@ -41,6 +44,7 @@ source .venv/bin/activate
 bash
 
 pip install --upgrade pip
+
 pip install -r requirements.txt
 
 5️⃣ Run Database Migrations
@@ -54,6 +58,7 @@ python manage.py migrate
 bash
 
 python manage.py createsuperuser
+
 Access admin at: http://127.0.0.1:8000/admin/
 
 7️⃣ Run Development Server
