@@ -117,6 +117,28 @@ def dashboard(request):
         forecast_labels = []
         cl_hum = ucl_hum = lcl_hum = None
 
+    forecast_temp_alerts, forecast_hum_alerts = [], []
+
+    # Forecast temperature alerts
+    if temp_forecast and ucl_temp is not None and lcl_temp is not None:
+        for i, val in enumerate(temp_forecast):
+            if val >= ucl_temp or val <= lcl_temp:
+                forecast_temp_alerts.append({
+                    "time": forecast_labels[i],
+                    "value": val,
+                    "type": "upper" if val >= ucl_temp else "lower"
+                })
+
+    # Forecast humidity alerts
+    if hum_forecast and ucl_hum is not None and lcl_hum is not None:
+        for i, val in enumerate(hum_forecast):
+            if val >= ucl_hum or val <= lcl_hum:
+                forecast_hum_alerts.append({
+                    "time": forecast_labels[i],
+                    "value": val,
+                    "type": "upper" if val >= ucl_hum else "lower"
+                })
+
     # Extract metadata from first matching entry (if exists)
     metadata = data.first()
 
@@ -140,6 +162,8 @@ def dashboard(request):
         'forecast_labels': forecast_labels,
         'temp_forecast': temp_forecast,
         'hum_forecast': hum_forecast,
+        "forecast_temp_alerts": forecast_temp_alerts,
+        "forecast_hum_alerts": forecast_hum_alerts,
         'request': request
     }
     return render(request, 'monitor/dashboard.html', context)

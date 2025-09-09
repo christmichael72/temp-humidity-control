@@ -95,6 +95,20 @@
       </div>
       {% endif %}
 
+    {% if forecast_temp_alerts %}
+    <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-6">
+      <h2 class="font-bold text-lg mb-2">⚠️ Forecast Temperature Alert!</h2>
+      <ul class="list-disc ml-5">
+        {% for a in forecast_temp_alerts %}
+        <li>
+          <strong>{{ a.time }}</strong> – Predicted Temperature: {{ a.value }}°C
+          (approaching {{ a.type|upper }} Control Limit)
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
     <!-- Humidity Chart -->
       <div class="bg-white rounded shadow p-4">
         <canvas id="humidityChart" class="w-full h-96"></canvas>
@@ -112,6 +126,20 @@
         </ul>
       </div>
       {% endif %}
+
+      {% if forecast_hum_alerts %}
+    <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-6">
+      <h2 class="font-bold text-lg mb-2">⚠️ Forecast Humidity Alert!</h2>
+      <ul class="list-disc ml-5">
+        {% for a in forecast_hum_alerts %}
+        <li>
+          <strong>{{ a.time }}</strong> – Predicted Humidity: {{ a.value }}%
+          (approaching {{ a.type|upper }} Control Limit)
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
 
       <!-- Temperature & Humidity Chart.js -->
       <script>
@@ -182,7 +210,7 @@
                       type: 'line',
                       label: 'Forecast Temp (°C)',
                       data: labels.map(() => null).concat(tempForecast),
-                      borderColor: 'orange',
+                      borderColor: 'blue',
                       borderDash: [3, 3],
                       tension: 0.3,
                       fill: false,
@@ -344,7 +372,7 @@
                       type: 'line',
                       label: 'Forecast Humidity (%)',
                       data: labels.map(() => null).concat(humForecast),
-                      borderColor: 'orange',
+                      borderColor: 'purple',
                       borderDash: [3, 3],
                       tension: 0.3,
                       fill: false,
