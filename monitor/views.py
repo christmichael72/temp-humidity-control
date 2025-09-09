@@ -12,7 +12,7 @@ from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.db.models import Avg, Max
 from xhtml2pdf import pisa
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64
 
 def dashboard(request):
@@ -20,9 +20,8 @@ def dashboard(request):
 
     # Filters
     date = request.GET.get('date')
-    container = request.GET.get('container')
-    pallet = request.GET.get('pallet')
-    product = request.GET.get('product')
+    start_hour = request.GET.get('start_hour')
+    end_hour = request.GET.get('end_hour')
 
     # ✅ If no date filter is given, default to most recent day
     if not date:
@@ -35,17 +34,18 @@ def dashboard(request):
         try:
             date_obj = datetime.strptime(date, '%Y-%m-%d').date()
             data = data.filter(timestamp__date=date_obj)
+
+            # ✅ Apply hour filter if provided
+            if start_hour and end_hour:
+                try:
+                    start_h = int(start_hour)
+                    end_h = int(end_hour)
+                    data = data.filter(timestamp__hour__gte=start_h, timestamp__hour__lte=end_h)
+                except ValueError:
+                    pass
+
         except ValueError:
             pass
-
-    if container:
-        data = data.filter(container_code__icontains=container)
-
-    if pallet:
-        data = data.filter(pallet_position__icontains=pallet)
-
-    if product:
-        data = data.filter(product_description__icontains=product)
 
     temp_alerts = data.filter(temperature__gt=-18).order_by('-timestamp')
     humidity_alerts = data.filter(humidity__gt=85).order_by('-timestamp')
@@ -54,34 +54,67 @@ def dashboard(request):
     temps = [d.temperature for d in data]
     hums = [d.humidity for d in data]
 
-    # ✅ Calculate EWMA for temps
-    if temps:
-        df = pd.DataFrame({'temp': temps})
-        ewma_temps = df['temp'].ewm(alpha=0.3).mean().round(2).tolist()
+    ewma_temps, ewma_hums = [], []
+    temp_forecast, hum_forecast = [], []
 
-        # ✅ Control Limits
-        mean_temp = df['temp'].mean()
-        std_temp = df['temp'].std()
+    # Calculate EWMA for temps
+    if len(temps) > 0:
+        df_temp = pd.Series(temps)
+        ewma_temps = df_temp.ewm(alpha=0.3).mean().round(2).tolist()
+
+        if len(ewma_temps) > 1:
+            slope = ewma_temps[-1] - ewma_temps[-2]
+        else:
+            slope = 0
+        last_val = ewma_temps[-1]
+
+        # Predict next 6 intervals
+        horizon = 6
+        temp_forecast = [round(last_val + (i + 1) * slope, 2) for i in range(horizon)]
+
+        last_time = data.last().timestamp
+        forecast_labels = [(last_time + timedelta(minutes=60 * (i + 1))).strftime('%H:%M') for i in range(horizon)]
+
+        # Control Limits
+        mean_temp = df_temp.mean()
+        std_temp = df_temp.std()
         cl_temp = round(mean_temp, 2)
         ucl_temp = round(mean_temp + 3 * std_temp, 2)
         lcl_temp = round(mean_temp - 3 * std_temp, 2)
     else:
         ewma_temps = []
+        temp_forecast = []
+        forecast_labels = []
         cl_temp = ucl_temp = lcl_temp = None
 
-    # ✅ Calculate EWMA for hums
-    if temps:
-        df = pd.DataFrame({'hum': hums})
-        ewma_hums = df['hum'].ewm(alpha=0.3).mean().round(2).tolist()
+    # Calculate EWMA for hums
+    if len(hums) > 0:
+        df_hum = pd.Series(hums)
+        ewma_hums = df_hum.ewm(alpha=0.3).mean().round(2).tolist()
 
-        # ✅ Control Limits
-        mean_hum = df['hum'].mean()
-        std_hum = df['hum'].std()
+        if len(ewma_hums) > 1:
+            slope = ewma_hums[-1] - ewma_hums[-2]
+        else:
+            slope = 0
+        last_val = ewma_hums[-1]
+
+        # Predict next 6 intervals
+        horizon = 6
+        hum_forecast = [round(last_val + (i + 1) * slope, 2) for i in range(horizon)]
+
+        last_time = data.last().timestamp
+        forecast_labels = [(last_time + timedelta(minutes=60 * (i + 1))).strftime('%H:%M') for i in range(horizon)]
+
+        # Control Limits
+        mean_hum = df_hum.mean()
+        std_hum = df_hum.std()
         cl_hum = round(mean_hum, 2)
         ucl_hum = round(mean_hum + 3 * std_hum, 2)
         lcl_hum = round(mean_hum - 3 * std_hum, 2)
     else:
         ewma_hums = []
+        hum_forecast = []
+        forecast_labels = []
         cl_hum = ucl_hum = lcl_hum = None
 
     # Extract metadata from first matching entry (if exists)
@@ -104,6 +137,9 @@ def dashboard(request):
         'date' : date,
         'temp_alerts': temp_alerts,
         'humidity_alerts': humidity_alerts,
+        'forecast_labels': forecast_labels,
+        'temp_forecast': temp_forecast,
+        'hum_forecast': hum_forecast,
         'request': request
     }
     return render(request, 'monitor/dashboard.html', context)
@@ -111,14 +147,27 @@ def dashboard(request):
 def range_chart(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
+    start_hour = request.GET.get('start_hour')
+    end_hour = request.GET.get('end_hour')
 
     data = MonitoringData.objects.all()
 
+    # Apply date range
     if start_date and end_date:
         try:
             start_dt = datetime.strptime(start_date, '%Y-%m-%d')
             end_dt = datetime.strptime(end_date, '%Y-%m-%d')
             data = data.filter(timestamp__date__gte=start_dt, timestamp__date__lte=end_dt)
+        except ValueError:
+            pass
+
+
+    # ✅ Apply hour filter
+    if start_hour and end_hour:
+        try:
+            start_h = int(start_hour)
+            end_h = int(end_hour)
+            data = data.filter(timestamp__hour__gte=start_h, timestamp__hour__lte=end_h)
         except ValueError:
             pass
 

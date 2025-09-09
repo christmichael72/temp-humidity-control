@@ -1,4 +1,5 @@
-
+{% load static %}
+{% load custom_tags %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -41,13 +42,38 @@
     </script>
 
       <!-- Filter Form -->
-      <form method="get" class="flex flex-wrap gap-4 mb-6 justify-self-center">
-        <input type="date" name="date" value="{{ request.GET.date }}" class="border p-2 rounded" />
-        <input type="text" name="container" placeholder="Container Code" value="{{ request.GET.container }}" class="border p-2 rounded" />
-        <input type="text" name="pallet" placeholder="Pallet Position" value="{{ request.GET.pallet }}" class="border p-2 rounded" />
-        <input type="text" name="product" placeholder="Product Description" value="{{ request.GET.product }}" class="border p-2 rounded w-64" />
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-          🔍 Filter
+      <form method="get" class="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-wrap gap-4">
+        <!-- Date filter -->
+        <div>
+          <label class="block font-semibold">Date:</label>
+          <input type="date" name="date" value="{{ date }}" class="border rounded px-3 py-1">
+        </div>
+
+        <!-- Hour filters -->
+        <div>
+          <label class="block font-semibold">Start Hour:</label>
+          <select name="start_hour" class="border rounded px-3 py-1">
+            {% for h in 0|to:23 %}
+            <option value="{{ h }}" {% if request.GET.start_hour == h|stringformat:"s" %}selected{% endif %}>
+                {{ h }}:00
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold">End Hour:</label>
+          <select name="end_hour" class="border rounded px-3 py-1">
+            {% for h in 0|to:23 %}
+            <option value="{{ h }}" {% if request.GET.end_hour == h|stringformat:"s" %}selected{% endif %}>
+                {{ h }}:00
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 mt-6">
+          Apply Filter
         </button>
       </form>
 
@@ -91,21 +117,34 @@
       <script>
         Chart.register(window['chartjs-plugin-annotation']);
 
-        const labels = {{ labels|safe }};
-        const temps = {{ temps|safe }};
-        const ewmaTemps = {{ ewma_temps|safe }};
-        const hums = {{ hums|safe }};
-        const ewmaHums = {{ ewma_hums|safe }};
+        // Arrays
+        const labels = {{ labels|default:"[]"|safe }};
+        const temps = {{ temps|default:"[]"|safe }};
+        const ewmaTemps = {{ ewma_temps|default:"[]"|safe }};
+        const hums = {{ hums|default:"[]"|safe }};
+        const ewmaHums = {{ ewma_hums|default:"[]"|safe }};
 
-        const clTemp = {{ cl_temp|default:"null" }};
-        const uclTemp = {{ ucl_temp|default:"null" }};
-        const lclTemp = {{ lcl_temp|default:"null" }};
+        // Forecast arrays
+        const forecastLabels = {{ forecast_labels|default:"[]"|safe }};
+        const tempForecast = {{ temp_forecast|default:"[]"|safe }};
+        const humForecast = {{ hum_forecast|default:"[]"|safe }};
+
+        // Control Limits
+        const clTemp = {{ cl_temp|default:"null"|safe }};
+        const uclTemp = {{ ucl_temp|default:"null"|safe }};
+        const lclTemp = {{ lcl_temp|default:"null"|safe }};
+        const clHum = {{ cl_hum|default:"null"|safe }};
+        const uclHum = {{ ucl_hum|default:"null"|safe }};
+        const lclHum = {{ lcl_hum|default:"null"|safe }};
+
+        // Merge forecast labels into main labels
+        const chartLabels = labels.concat(forecastLabels);
 
         const tempsCtx = document.getElementById('temperatureChart').getContext('2d');
         const tempsChart = new Chart(tempsCtx, {
           type: 'bar',
           data: {
-            labels: labels,
+            labels: chartLabels,
             datasets: [
                     {
                       type: 'line',
@@ -115,6 +154,7 @@
                       backgroundColor: 'green',
                       yAxisID: 'y',
                       tension: 0.3,
+                      fill: false,
                       pointBackgroundColor: temps.map(value => {
                         if (value > -15) return 'red';        // Above -15°C
                         if (value > -18) return 'orange';     // Between -18°C and -15°C
@@ -137,6 +177,15 @@
                       yAxisID: 'y',
                       tension: 0.3,
                       pointRadius: 0 // smooth line without points
+                    },
+                    {
+                      type: 'line',
+                      label: 'Forecast Temp (°C)',
+                      data: labels.map(() => null).concat(tempForecast),
+                      borderColor: 'orange',
+                      borderDash: [3, 3],
+                      tension: 0.3,
+                      fill: false,
                     }
             ]
           },
@@ -254,15 +303,11 @@
           }
         });
 
-        const clHum = {{ cl_hum|default:"null" }};
-        const uclHum = {{ ucl_hum|default:"null" }};
-        const lclHum = {{ lcl_hum|default:"null" }};
-
         const humsCtx = document.getElementById('humidityChart').getContext('2d');
         const humsChart = new Chart(humsCtx, {
           type: 'bar',
           data: {
-            labels: labels,
+            labels: chartLabels,
             datasets: [
                     {
                       type: 'line',
@@ -272,6 +317,7 @@
                       backgroundColor: 'blue',
                       yAxisID: 'y',
                       tension: 0.3,
+                      fill: false,
                       pointBackgroundColor: hums.map(value => {
                         if (value > 88) return 'red';        // Above -15°C
                         if (value > 85) return 'orange';     // Between -18°C and -15°C
@@ -293,6 +339,15 @@
                       borderWidth: 2,
                       tension: 0.3,
                       pointRadius: 0
+                    },
+                    {
+                      type: 'line',
+                      label: 'Forecast Humidity (%)',
+                      data: labels.map(() => null).concat(humForecast),
+                      borderColor: 'orange',
+                      borderDash: [3, 3],
+                      tension: 0.3,
+                      fill: false,
                     }
             ]
           },

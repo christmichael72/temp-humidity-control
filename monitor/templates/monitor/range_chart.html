@@ -1,3 +1,5 @@
+{% load static %}
+{% load custom_tags %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -28,6 +30,29 @@
                 <label class="font-semibold">End Date:</label>
                 <input type="date" name="end_date" value="{{ end_date }}" class="border rounded px-3 py-1">
             </div>
+
+            <!--- Hour filter -->
+            <div>
+                <label class="block font-semibold">Start Hour:</label>
+                <select name="start_hour" class="border rounded px-3 py-1">
+                    {% for h in 0|to:23 %}
+                    <option value="{{ h }}" {% if start_hour == h|stringformat:"s" %}selected{% endif %}>
+                    {{ h }}:00
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold">End Hour:</label>
+                <select name="end_hour" class="border rounded px-3 py-1">
+                    {% for h in 0|to:23 %}
+                    <option value="{{ h }}" {% if end_hour == h|stringformat:"s" %}selected{% endif %}>
+                    {{ h }}:00
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 mt-4 md:mt-6">
                 Apply Filter
             </button>
